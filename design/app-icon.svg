@@ -1,34 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <!-- Concept 4b (tightened): widescreen monitor, speaker + single soundwave
-       inside, a clean outbound arrow that physically crosses the right bezel.
-       Three clear semantic slots:
-         • grey monitor (structure)
-         • blue speaker + wave (audio content)
-         • blue arrow (routing direction) -->
+  <!-- Concept 4b, re-proportioned: same story (widescreen monitor + speaker
+       + outbound arrow crossing the right bezel) but the artwork now fills
+       ~78% of the canvas vertically instead of ~55%. The earlier version had
+       58px of padding top AND bottom (45% of the canvas empty), which made
+       the taskbar/tray glyph visibly smaller than Windows peer icons. -->
 
-  <!-- Monitor frame: 5:3 widescreen -->
-  <rect x="22" y="64" width="160" height="100" rx="10"
-        fill="none" stroke="#5A5A5A" stroke-width="12"/>
+  <!-- Monitor frame: 1.25:1 aspect, roomy enough for speaker + wave inside
+       while leaving the right half of the canvas for the outbound arrow. -->
+  <rect x="20" y="30" width="170" height="140" rx="12"
+        fill="none" stroke="#5A5A5A" stroke-width="14"/>
 
-  <!-- Stand stem + base, centered under the monitor -->
-  <line x1="102" y1="164" x2="102" y2="188"
-        stroke="#5A5A5A" stroke-width="12" stroke-linecap="round"/>
-  <line x1="74" y1="192" x2="130" y2="192"
-        stroke="#5A5A5A" stroke-width="12" stroke-linecap="round"/>
+  <!-- Stand stem + base. Bumped stroke to 14 so it reads at the same weight
+       as the monitor frame — a 12px stroke looked spindly next to the now-
+       bigger rectangle. -->
+  <line x1="105" y1="170" x2="105" y2="212"
+        stroke="#5A5A5A" stroke-width="14" stroke-linecap="round"/>
+  <line x1="68" y1="218" x2="142" y2="218"
+        stroke="#5A5A5A" stroke-width="14" stroke-linecap="round"/>
 
   <!-- Speaker glyph inside the display -->
-  <path d="M 52 100 L 74 100 L 102 78 L 102 150 L 74 128 L 52 128 Z"
+  <path d="M 40 84 L 72 84 L 108 54 L 108 146 L 72 116 L 40 116 Z"
         fill="#0078D4" stroke="#0078D4" stroke-width="3" stroke-linejoin="round"/>
 
-  <!-- Single soundwave next to the speaker (inside the monitor) -->
-  <path d="M 118 98 Q 136 114, 118 130"
-        fill="none" stroke="#0078D4" stroke-width="10" stroke-linecap="round"/>
+  <!-- Soundwave next to the speaker, inside the monitor -->
+  <path d="M 128 80 Q 152 100, 128 120"
+        fill="none" stroke="#0078D4" stroke-width="12" stroke-linecap="round"/>
 
-  <!-- Outbound arrow: tail starts just past the wave, crosses the right
-       bezel, ends in a tip outside. Drawn last so the blue sits on top of
-       the grey where they overlap — the crossing reads as a clean exit. -->
-  <path d="M 144 114 L 224 114
-           M 208 98 L 224 114 L 208 130"
-        fill="none" stroke="#0078D4" stroke-width="13"
+  <!-- Outbound arrow: tail starts past the wave (x=166, inside the monitor)
+       and crosses the right bezel (x=190+7=197) to end at the tip outside
+       the frame. Drawn last so blue sits on top of grey at the crossing. -->
+  <path d="M 166 100 L 234 100
+           M 218 80 L 234 100 L 218 120"
+        fill="none" stroke="#0078D4" stroke-width="15"
         stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
