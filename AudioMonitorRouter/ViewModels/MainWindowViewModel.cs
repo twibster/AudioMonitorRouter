@@ -198,6 +198,16 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     public string AppVersionDisplay => $"Version {_updateService.CurrentVersion}";
 
+    /// <summary>
+    /// Copyright footer rendered at the bottom of the About page. Takes the
+    /// standard "Copyright (c) YYYY …" string emitted by MSBuild and swaps the
+    /// "(c)" for a proper © glyph — same info, cleaner typography. We do the
+    /// swap here rather than in the csproj because the Win32 file-properties
+    /// dialog (and some installer pipelines) prefer the ASCII form.
+    /// </summary>
+    public string CopyrightDisplay =>
+        _updateService.Copyright.Replace("Copyright (c)", "©", StringComparison.OrdinalIgnoreCase);
+
     [ObservableProperty]
     private string _updateStatus = string.Empty;
 

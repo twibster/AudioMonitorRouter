@@ -65,6 +65,16 @@ public class UpdateService
     /// </summary>
     public string CurrentVersion => GetInformationalVersion();
 
+    /// <summary>
+    /// Copyright line surfaced in the About page footer. Read from the assembly's
+    /// <c>[AssemblyCopyright]</c> attribute, which MSBuild fills from the csproj's
+    /// <c>&lt;Copyright&gt;</c> property — so bumping the year in one place updates
+    /// both the Win32 file-properties dialog and the UI. The verbatim form uses
+    /// "(c)" for ASCII compatibility with those Win32 consumers; the VM rewrites
+    /// that to the © glyph for display.
+    /// </summary>
+    public string Copyright => GetAssemblyCopyright();
+
     public async Task<UpdateCheckResult> CheckForUpdateAsync(CancellationToken ct = default)
     {
         string current = CurrentVersion;
@@ -170,6 +180,15 @@ public class UpdateService
 
     private static string StripVPrefix(string tag) =>
         tag.StartsWith('v') || tag.StartsWith('V') ? tag[1..] : tag;
+
+    private static string GetAssemblyCopyright()
+    {
+        var asm = Assembly.GetEntryAssembly() ?? typeof(UpdateService).Assembly;
+        var value = asm.GetCustomAttribute<AssemblyCopyrightAttribute>()?.Copyright;
+        return string.IsNullOrWhiteSpace(value)
+            ? $"Copyright (c) {DateTime.Now.Year} twibster"
+            : value;
+    }
 
     // Minimal shape of the GitHub "latest release" response — only the two
     // fields we actually read. System.Text.Json ignores anything else.
