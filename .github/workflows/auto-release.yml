@@ -56,16 +56,30 @@ jobs:
         id: bump
         env:
           # toJSON gives us a structured payload that doesn't rely on label
-          # names being shell-safe — we match against "name":"..." substrings.
+          # names being shell-safe. We parse it with jq so we don't have to
+          # guess GitHub's formatting (toJSON pretty-prints with spaces, which
+          # silently broke an earlier substring-matching version of this step).
           LABELS: ${{ toJSON(github.event.pull_request.labels) }}
         run: |
           set -euo pipefail
           echo "PR labels JSON: $LABELS"
 
-          has_major=$(echo "$LABELS" | grep -c '"name":"release:major"' || true)
-          has_minor=$(echo "$LABELS" | grep -c '"name":"release:minor"' || true)
-          has_patch=$(echo "$LABELS" | grep -c '"name":"release:patch"' || true)
-          has_skip=$(echo  "$LABELS" | grep -c '"name":"release:skip"'  || true)
+          # jq --arg keeps the label name out of the filter string, so a label
+          # with regex-special characters can't break parsing. Wrapped in `if`
+          # (rather than `cmd && var=1`) so a "label absent" return-1 from jq
+          # doesn't confuse `set -e`.
+          has_label() {
+            if echo "$LABELS" | jq -e --arg n "$1" 'any(.[]; .name == $n)' >/dev/null; then
+              echo 1
+            else
+              echo 0
+            fi
+          }
+
+          has_major=$(has_label "release:major")
+          has_minor=$(has_label "release:minor")
+          has_patch=$(has_label "release:patch")
+          has_skip=$(has_label  "release:skip")
 
           bump_count=$(( has_major + has_minor + has_patch ))
 
