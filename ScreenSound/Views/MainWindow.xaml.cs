@@ -31,8 +31,8 @@ public partial class MainWindow : UiWindow
         DataContext = _viewModel;
 
         // Order must match the Tag indices on the sidebar RadioButtons:
-        //   0 = Home, 1 = Pinned, 2 = Settings, 3 = About.
-        _pages = new[] { HomePage, PinnedPage, SettingsPage, AboutPage };
+        //   0 = Home, 1 = Pinned, 2 = Settings, 3 = About, 4 = Donate.
+        _pages = new[] { HomePage, PinnedPage, SettingsPage, AboutPage, DonatePage };
 
         SetupTrayIcon();
 
