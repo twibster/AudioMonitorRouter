@@ -72,7 +72,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private readonly DispatcherTimer _deviceRefreshTimer;
     private readonly Dispatcher _dispatcher;
     private bool _isLoading;
-    private bool _disposed;
+    // Volatile: read on the COM RPC thread in OnDeviceChangeDetected, written
+    // on the UI thread in Dispose(). Without the barrier a late callback can
+    // miss the write and queue dispatcher work during shutdown.
+    private volatile bool _disposed;
 
     // Debounce window for coalescing bursts of device events. Plugging in a USB
     // DAC routinely fires OnDeviceAdded + OnDeviceStateChanged + OnDefaultDeviceChanged
@@ -244,6 +247,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         // plugged device might make a previously-dangling mapping valid again,
         // and a newly removed one needs the engine to stop trying to route to it.
         PushMappingsToEngine();
+
+        // Re-sync sliders in case a re-plugged device has a different volume
+        // than the one we last remembered.
+        RefreshAssignedVolumes();
     }
 
     private void LoadSettings()
@@ -274,15 +281,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 _ => 0
             };
 
-            // Read current volume from each assigned device
-            foreach (var m in Monitors)
-            {
-                if (m.SelectedAudioDevice != null && !string.IsNullOrEmpty(m.SelectedAudioDevice.Id))
-                {
-                    var vol = _audioDeviceService.GetDeviceVolume(m.SelectedAudioDevice.Id);
-                    m.Volume = (int)Math.Round(vol * 100);
-                }
-            }
+            RefreshAssignedVolumes();
 
             PushMappingsToEngine();
             IsRoutingEnabled = settings.IsEnabled;
@@ -295,11 +294,27 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private void OnMappingChanged()
     {
-        PushMappingsToEngine();
-        if (!_isLoading)
-            SaveSettings();
+        // During programmatic refreshes (LoadSettings, hot-plug refresh, Refresh
+        // command) selections are assigned in a loop. Running the full push-mappings
+        // + volume-read fanout for each one would do O(N²) NAudio COM calls on the
+        // UI thread and fire N half-built routing pushes. Each programmatic caller
+        // is responsible for invoking PushMappingsToEngine + RefreshAssignedVolumes
+        // itself, once, after its loop finishes.
+        if (_isLoading) return;
 
-        // Read the current volume from the newly selected device
+        PushMappingsToEngine();
+        SaveSettings();
+        RefreshAssignedVolumes();
+    }
+
+    /// <summary>
+    /// Reads the current master volume from each monitor's assigned audio device
+    /// and syncs it to the monitor's <c>Volume</c> slider. Runs on the UI thread;
+    /// each call makes one NAudio COM round-trip per assigned device, so callers
+    /// should run it once after a batch of selection changes rather than per-change.
+    /// </summary>
+    private void RefreshAssignedVolumes()
+    {
         foreach (var m in Monitors)
         {
             if (m.SelectedAudioDevice != null && !string.IsNullOrEmpty(m.SelectedAudioDevice.Id))
@@ -445,6 +460,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                         monitorVm.SelectedAudioDevice = device;
                 }
             }
+
+            // OnMappingChanged is suppressed under _isLoading, so read volumes
+            // explicitly — sliders would otherwise show their default of 100.
+            RefreshAssignedVolumes();
         }
         finally
         {

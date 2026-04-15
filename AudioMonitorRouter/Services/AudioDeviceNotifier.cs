@@ -26,6 +26,11 @@ public sealed class AudioDeviceNotifier : IMMNotificationClient, IDisposable
 {
     private readonly MMDeviceEnumerator _enumerator;
     private bool _registered;
+    // Volatile because it's written on the thread calling Dispose() and read
+    // on arbitrary COM RPC threads servicing in-flight callbacks. Without the
+    // barrier a late callback could miss the write and invoke a subscriber
+    // after IDisposable says we're done.
+    private volatile bool _disposed;
 
     /// <summary>
     /// Raised when the set of available render endpoints changes
@@ -60,26 +65,50 @@ public sealed class AudioDeviceNotifier : IMMNotificationClient, IDisposable
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
+
         Stop();
+
+        // Drop all subscribers so even if a COM callback is still in flight and
+        // misses the _disposed check, there's nothing left to invoke. Field-
+        // like events are rewritable inside the declaring class.
+        DevicesChanged = null;
+        DefaultDeviceChanged = null;
+
         try { _enumerator.Dispose(); } catch { }
     }
 
     // --- IMMNotificationClient ---
     // These run on a COM RPC thread. They must not throw — exceptions propagating
     // back into the OS callback pipeline are undefined behavior. We swallow.
+    // Each entry checks _disposed because UnregisterEndpointNotificationCallback
+    // does NOT block in-flight callbacks; one can land between Dispose() starting
+    // and Stop() completing.
 
     public void OnDeviceStateChanged(string deviceId, DeviceState newState)
     {
+        if (_disposed) return;
         // Covers disable/enable from Sound Settings and state flips when a device
         // becomes unavailable without being "removed" from the endpoint registry.
         SafeRaise(DevicesChanged);
     }
 
-    public void OnDeviceAdded(string deviceId) => SafeRaise(DevicesChanged);
-    public void OnDeviceRemoved(string deviceId) => SafeRaise(DevicesChanged);
+    public void OnDeviceAdded(string deviceId)
+    {
+        if (_disposed) return;
+        SafeRaise(DevicesChanged);
+    }
+
+    public void OnDeviceRemoved(string deviceId)
+    {
+        if (_disposed) return;
+        SafeRaise(DevicesChanged);
+    }
 
     public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
     {
+        if (_disposed) return;
         // Only care about render (output) changes; ignore capture-device default flips.
         if (flow != DataFlow.Render) return;
         SafeRaise(DefaultDeviceChanged);
