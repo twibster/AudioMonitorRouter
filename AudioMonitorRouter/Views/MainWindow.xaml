@@ -529,16 +529,22 @@
                                      Two static GitHub URLs; /releases/latest redirects
                                      to the current tag so we don't have to bake a
                                      version into the URL here.
+
+                                     Padding is tightened from the default wpfui:Button
+                                     (11,5,11,6) down to 8,2 so the stacked hyperlinks
+                                     read as a compact list rather than two spaced-out
+                                     buttons. No margin between them — the reduced
+                                     padding alone gives enough breathing room.
                                 -->
                                 <TextBlock Text="Links" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
                                 <wpfui:Hyperlink Content="Project website on GitHub"
                                                  Icon="Link24"
                                                  NavigateUri="https://github.com/twibster/AudioMonitorRouter"
-                                                 HorizontalAlignment="Left" Margin="0,0,0,4"/>
+                                                 HorizontalAlignment="Left" Padding="8,2"/>
                                 <wpfui:Hyperlink Content="Latest release on GitHub"
                                                  Icon="Link24"
                                                  NavigateUri="https://github.com/twibster/AudioMonitorRouter/releases/latest"
-                                                 HorizontalAlignment="Left"/>
+                                                 HorizontalAlignment="Left" Padding="8,2"/>
 
                                 <!-- ── Update check ─────────────────────────────────
                                      User-initiated (no background polling) so we
