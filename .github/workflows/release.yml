@@ -25,7 +25,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '7.0.x'
+          dotnet-version: '8.0.x'
 
       - name: Determine version
         id: version
@@ -42,31 +42,28 @@ jobs:
       - name: Restore
         run: dotnet restore AudioMonitorRouter.sln
 
-      - name: Publish single-file self-contained (win-x64)
-        # NOTE: PublishReadyToRun is intentionally DISABLED. R2R + SingleFile on
-        # WPF crashes with "The type initializer for 'System.Windows.Media.FontFamily'
-        # threw an exception" (DirectWrite factory init fails). Known WPF bug —
-        # https://github.com/dotnet/wpf/issues/6792
+      - name: Publish framework-dependent (win-x64)
+        # Framework-dependent: ~6 MB output vs ~85 MB self-contained. The installer
+        # checks for and downloads the .NET 8 Desktop Runtime at install time.
+        # Single-file publish is avoided on WPF: R2R + SingleFile crashes
+        # DirectWrite factory init — see https://github.com/dotnet/wpf/issues/6792
         shell: pwsh
         run: |
           dotnet publish AudioMonitorRouter\AudioMonitorRouter.csproj `
             -c Release `
             -r win-x64 `
-            --self-contained true `
-            -p:PublishSingleFile=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
-            -p:EnableCompressionInSingleFile=true `
+            --self-contained false `
             -p:DebugType=None `
             -p:DebugSymbols=false `
             -p:Version=${{ steps.version.outputs.VERSION }} `
             -o publish
 
-      - name: Rename portable exe with version
+      - name: Package portable zip
         shell: pwsh
         run: |
-          Copy-Item `
-            -Path "publish\AudioMonitorRouter.exe" `
-            -Destination "publish\AudioMonitorRouter-${{ steps.version.outputs.VERSION }}-portable.exe"
+          $zipName = "AudioMonitorRouter-${{ steps.version.outputs.VERSION }}-portable.zip"
+          Compress-Archive -Path "publish\*" -DestinationPath "publish\$zipName"
+          Write-Host "Created $zipName"
 
       - name: Build installer (Inno Setup)
         shell: pwsh
@@ -79,7 +76,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: AudioMonitorRouter-portable
-          path: publish\AudioMonitorRouter-${{ steps.version.outputs.VERSION }}-portable.exe
+          path: publish\AudioMonitorRouter-${{ steps.version.outputs.VERSION }}-portable.zip
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
@@ -97,5 +94,5 @@ jobs:
           prerelease: false
           generate_release_notes: true
           files: |
-            publish/AudioMonitorRouter-${{ steps.version.outputs.VERSION }}-portable.exe
+            publish/AudioMonitorRouter-${{ steps.version.outputs.VERSION }}-portable.zip
             installer/Output/*.exe

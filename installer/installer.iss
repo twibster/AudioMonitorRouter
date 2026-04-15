@@ -1,6 +1,10 @@
 ; Inno Setup script for Audio Monitor Router
 ; Builds a Windows installer that installs to Program Files, creates Start Menu
 ; shortcuts, registers an uninstaller, and launches the app after install.
+;
+; This installer ships a framework-dependent .NET 8 build (~5-8 MB) and
+; downloads + installs the .NET 8 Desktop Runtime on-demand if missing,
+; keeping our installer ~10x smaller than a self-contained build.
 
 #define MyAppName "Audio Monitor Router"
 #define MyAppExeName "AudioMonitorRouter.exe"
@@ -12,6 +16,11 @@
 #if MyAppVersion == ""
   #define MyAppVersion "1.0.0"
 #endif
+
+; Pinned .NET 8 Desktop Runtime download. Bump this on major .NET 8 patch releases.
+; The installed-version check only requires 8.0.x so end users running an older
+; 8.0 patch won't be forced to re-download.
+#define DotNet8RuntimeUrl "https://builds.dotnet.microsoft.com/dotnet/Runtime/8.0.15/windowsdesktop-runtime-8.0.15-win-x64.exe"
 
 [Setup]
 ; AppId is a GUID that uniquely identifies the app for uninstall. NEVER change this
@@ -55,7 +64,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "startupicon"; Description: "Start {#MyAppName} when I sign in to Windows"; GroupDescription: "Startup:"; Flags: unchecked
 
 [Files]
-Source: "..\publish\AudioMonitorRouter.exe"; DestDir: "{app}"; Flags: ignoreversion
+; Ship the whole framework-dependent publish folder (exe + dlls + runtimeconfig)
+Source: "..\publish\*"; DestDir: "{app}"; Excludes: "*.pdb,*.zip"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -66,6 +76,11 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "AudioMonitorRouter"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue; Tasks: startupicon
 
 [Run]
+; Silent-install the .NET 8 Desktop Runtime if we had to download it.
+; Runs before our app is launched.
+Filename: "{tmp}\windowsdesktop-runtime-8-x64.exe"; Parameters: "/install /quiet /norestart"; \
+  StatusMsg: "Installing .NET 8 Desktop Runtime..."; \
+  Check: NeedsDotNet8Install; Flags: waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
@@ -75,3 +90,74 @@ Filename: "{cmd}"; Parameters: "/C taskkill /F /IM {#MyAppExeName}"; Flags: runh
 [UninstallDelete]
 ; Remove the per-user settings folder on uninstall
 Type: filesandordirs; Name: "{userappdata}\AudioMonitorRouter"
+
+[Code]
+var
+  DownloadPage: TDownloadWizardPage;
+
+// Check if any 8.0.x .NET Desktop Runtime is installed.
+// Path: C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App\8.*
+function IsDotNet8DesktopInstalled: Boolean;
+var
+  FindRec: TFindRec;
+  BasePath: String;
+begin
+  Result := False;
+  BasePath := ExpandConstant('{commonpf64}') + '\dotnet\shared\Microsoft.WindowsDesktop.App';
+  if FindFirst(BasePath + '\8.*', FindRec) then
+  begin
+    try
+      repeat
+        if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
+        begin
+          Result := True;
+          Exit;
+        end;
+      until not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+end;
+
+// Used by [Run] Check: clause — only runs the runtime installer if we downloaded it.
+function NeedsDotNet8Install: Boolean;
+begin
+  Result := not IsDotNet8DesktopInstalled;
+end;
+
+procedure InitializeWizard;
+begin
+  DownloadPage := CreateDownloadPage(SetupMessage(msgWizardPreparing),
+                                     'Downloading .NET 8 Desktop Runtime...',
+                                     nil);
+end;
+
+// Queue the .NET 8 runtime download right before file copy starts, so the user
+// sees a progress bar and we don't block the whole installer if they're offline.
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (CurPageID = wpReady) and not IsDotNet8DesktopInstalled then
+  begin
+    DownloadPage.Clear;
+    DownloadPage.Add('{#DotNet8RuntimeUrl}', 'windowsdesktop-runtime-8-x64.exe', '');
+    DownloadPage.Show;
+    try
+      try
+        DownloadPage.Download;
+        Result := True;
+      except
+        SuppressibleMsgBox(
+          'Failed to download the .NET 8 Desktop Runtime.' + #13#10 +
+          'Please install it manually from:' + #13#10 +
+          'https://dotnet.microsoft.com/download/dotnet/8.0' + #13#10 + #13#10 +
+          'Error: ' + GetExceptionMessage,
+          mbCriticalError, MB_OK, IDOK);
+        Result := False;
+      end;
+    finally
+      DownloadPage.Hide;
+    end;
+  end;
+end;
