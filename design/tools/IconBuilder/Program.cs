@@ -89,6 +89,13 @@ static void WritePng(SvgDocument svg, int size, string path)
 
 static void WriteIco(SvgDocument svg, int[] sizes, string path)
 {
+    // Same directory-safety dance as WritePng — the caller may point us at
+    // an Assets/ subfolder (or a deeper CI output dir) that doesn't exist
+    // yet, and FileStream.Create doesn't recurse parents on its own.
+    string? dir = Path.GetDirectoryName(path);
+    if (!string.IsNullOrEmpty(dir))
+        Directory.CreateDirectory(dir);
+
     var pngBlobs = new List<byte[]>();
 
     foreach (int size in sizes)

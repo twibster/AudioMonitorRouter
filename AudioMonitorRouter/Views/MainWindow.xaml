@@ -557,17 +557,33 @@
                                 -->
                                 <Border Height="1" Background="{DynamicResource ControlStrokeColorDefaultBrush}" Margin="0,20,0,16"/>
                                 <TextBlock Text="Updates" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                    <wpfui:Button Content="Check for updates"
+                                <!--
+                                    Grid (rather than a horizontal StackPanel) so the status
+                                    TextBlock can actually wrap to the content card's width.
+                                    StackPanel gives children infinite horizontal space, which
+                                    silently defeats TextWrapping — a long "Update available:
+                                    1.2.3" string would clip outside the card. Button keeps
+                                    its intrinsic width (Auto column); the wrap column (*)
+                                    takes the remainder.
+                                -->
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <wpfui:Button Grid.Column="0"
+                                                  Content="Check for updates"
                                                   Icon="ArrowSync24"
                                                   Command="{Binding CheckForUpdatesCommand}"
                                                   IsEnabled="{Binding IsCheckingForUpdate, Converter={StaticResource InverseBooleanConverter}}"/>
-                                    <TextBlock Text="{Binding UpdateStatus}"
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding UpdateStatus}"
                                                VerticalAlignment="Center"
                                                Margin="12,0,0,0"
                                                FontSize="13"
+                                               TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                </StackPanel>
+                                </Grid>
                                 <!-- Hyperlink only shown when an update is available (LatestReleaseUrl is
                                      non-empty). wpfui:Hyperlink derives from wpfui:Button and, on click,
                                      opens NavigateUri via ShellExecute — no Command wiring needed. -->

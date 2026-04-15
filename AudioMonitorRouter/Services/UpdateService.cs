@@ -112,28 +112,17 @@ public class UpdateService
 
             string latest = StripVPrefix(release.TagName);
 
-            if (!Version.TryParse(latest, out var latestVer) ||
-                !Version.TryParse(current, out var currentVer))
-            {
-                // If either side doesn't parse (e.g. "1.2.3-beta"), fall back to
-                // a simple string compare. Better to surface uncertainty than
-                // silently claim "up to date".
-                return string.Equals(latest, current, StringComparison.Ordinal)
-                    ? new UpdateCheckResult.UpToDate(current)
-                    : new UpdateCheckResult.UpdateAvailable(current, latest,
-                        release.HtmlUrl ?? $"https://github.com/twibster/AudioMonitorRouter/releases/tag/{release.TagName}");
-            }
+            // html_url should always be present on a GitHub release, but the
+            // API technically permits nulls. Fall back to composing the tag
+            // URL ourselves — Uri.EscapeDataString because tag names can
+            // legally contain characters (/, #, spaces) that would otherwise
+            // break the path segment.
+            string releaseUrl = release.HtmlUrl ??
+                $"https://github.com/twibster/AudioMonitorRouter/releases/tag/{Uri.EscapeDataString(release.TagName)}";
 
-            if (latestVer > currentVer)
-            {
-                return new UpdateCheckResult.UpdateAvailable(
-                    CurrentVersion: current,
-                    LatestVersion: latest,
-                    ReleaseUrl: release.HtmlUrl ??
-                        $"https://github.com/twibster/AudioMonitorRouter/releases/tag/{release.TagName}");
-            }
-
-            return new UpdateCheckResult.UpToDate(current);
+            return CompareSemVer(latest, current) > 0
+                ? new UpdateCheckResult.UpdateAvailable(current, latest, releaseUrl)
+                : new UpdateCheckResult.UpToDate(current);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -180,6 +169,46 @@ public class UpdateService
 
     private static string StripVPrefix(string tag) =>
         tag.StartsWith('v') || tag.StartsWith('V') ? tag[1..] : tag;
+
+    /// <summary>
+    /// Compares two version strings "SemVer-enough" for an update probe.
+    /// Splits each into a numeric core (compared via <see cref="Version"/>)
+    /// and an optional prerelease tail after the first '-'. On a numeric
+    /// tie, a final release (no tail) outranks any prerelease — so
+    /// "1.2.3" &gt; "1.2.3-beta". If the numeric core on either side fails
+    /// to parse we fall back to an ordinal string compare of the original
+    /// input, which may false-positive an update but will never silently
+    /// hide a real one.
+    /// </summary>
+    private static int CompareSemVer(string a, string b)
+    {
+        var (coreA, preA) = SplitPrerelease(a);
+        var (coreB, preB) = SplitPrerelease(b);
+
+        if (Version.TryParse(coreA, out var va) && Version.TryParse(coreB, out var vb))
+        {
+            int byCore = va.CompareTo(vb);
+            if (byCore != 0) return byCore;
+
+            // Numeric cores are equal — prerelease < release on the same core.
+            return (preA.Length, preB.Length) switch
+            {
+                (0, 0) => 0,
+                (0, _) => 1,   // a is release, b is prerelease → a > b
+                (_, 0) => -1,  // a is prerelease, b is release → a < b
+                _      => string.Compare(preA, preB, StringComparison.Ordinal),
+            };
+        }
+
+        // Numeric parse failed somewhere; don't pretend we know the ordering.
+        return string.Compare(a, b, StringComparison.Ordinal);
+    }
+
+    private static (string core, string prerelease) SplitPrerelease(string v)
+    {
+        int dash = v.IndexOf('-');
+        return dash < 0 ? (v, "") : (v[..dash], v[(dash + 1)..]);
+    }
 
     private static string GetAssemblyCopyright()
     {

@@ -86,7 +86,10 @@ Filename: "{tmp}\windowsdesktop-runtime-8-x64.exe"; Parameters: "/install /quiet
 ; previous icon until Explorer's cache rolls over naturally (often a
 ; reboot away). ie4uinit -show is the documented, silent way to trigger a
 ; refresh; runhidden avoids flashing a console window at the user.
-Filename: "{sys}\ie4uinit.exe"; Parameters: "-show"; Flags: runhidden skipifdoesntexist
+; runasoriginaluser matters for over-the-shoulder UAC installs: without it
+; this inherits the installer's elevated admin token and refreshes the
+; admin's icon cache instead of the signed-in user's Explorer.
+Filename: "{sys}\ie4uinit.exe"; Parameters: "-show"; Flags: runhidden skipifdoesntexist runasoriginaluser
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
