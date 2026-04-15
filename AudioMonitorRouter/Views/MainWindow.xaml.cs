@@ -2,6 +2,7 @@ using AudioMonitorRouter.ViewModels;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Wpf.Ui.Appearance;
@@ -195,6 +196,29 @@ public partial class MainWindow : UiWindow
     // on the row's IsOverridden state. The session VM is carried via the row
     // Border's Tag and read back through PlacementTarget.Tag — ContextMenu lives
     // in its own popup window and doesn't inherit the row's DataContext.
+
+    /// <summary>
+    /// Keyboard entry point for the session-row context menu. The row is
+    /// <c>Focusable="True"</c> so Tab can reach it; this handler opens the same
+    /// ContextMenu that right-click opens when the user presses the Apps key
+    /// or Shift+F10 — matching standard Windows list-row keyboarding.
+    /// </summary>
+    private void SessionRow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.ContextMenu is not ContextMenu menu)
+            return;
+
+        bool shouldOpen = e.Key == Key.Apps
+            || (e.Key == Key.F10 && (Keyboard.Modifiers & ModifierKeys.Shift) != 0);
+        if (!shouldOpen) return;
+
+        // Anchor the popup at the row and let ContextMenuOpening populate it,
+        // so the keyboard path goes through the same flow as the mouse path.
+        menu.PlacementTarget = fe;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.IsOpen = true;
+        e.Handled = true;
+    }
 
     private void SessionRow_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {

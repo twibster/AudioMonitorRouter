@@ -227,17 +227,43 @@
                         <Grid>
                             <ScrollViewer VerticalScrollBarVisibility="Auto"
                                           HorizontalScrollBarVisibility="Disabled">
-                                <ItemsControl ItemsSource="{Binding ActiveSessions}">
+                                <!-- TabNavigation=Once: one Tab lands on the first focusable row, then
+                                     arrow keys navigate between rows — standard list-like keyboarding
+                                     without needing a ListBox wrapper and its selection visuals. -->
+                                <ItemsControl ItemsSource="{Binding ActiveSessions}"
+                                              KeyboardNavigation.TabNavigation="Once"
+                                              KeyboardNavigation.DirectionalNavigation="Contained">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <!-- Tag carries the row's session VM into the ContextMenu, which lives
                                                  outside the visual tree and can't reach DataContext directly. The
-                                                 ContextMenuOpening handler reads it back via PlacementTarget.Tag. -->
+                                                 ContextMenuOpening handler reads it back via PlacementTarget.Tag.
+                                                 Focusable + IsTabStop + PreviewKeyDown make pinning reachable from
+                                                 the keyboard (Apps or Shift+F10 opens the same menu as right-click);
+                                                 AutomationProperties.Name gives screen readers a meaningful label. -->
                                             <Border Padding="20,10"
                                                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                                    BorderThickness="0,0,0,1" Background="Transparent"
+                                                    BorderThickness="0,0,0,1"
                                                     Tag="{Binding}"
-                                                    ContextMenuOpening="SessionRow_ContextMenuOpening">
+                                                    Focusable="True"
+                                                    KeyboardNavigation.IsTabStop="True"
+                                                    AutomationProperties.Name="{Binding ProcessName, StringFormat='Audio session {0}. Press Menu key or Shift+F10 to pin.'}"
+                                                    ContextMenuOpening="SessionRow_ContextMenuOpening"
+                                                    PreviewKeyDown="SessionRow_PreviewKeyDown">
+                                                <!-- Background is driven by the style rather than a local value so
+                                                     the IsKeyboardFocused trigger can take effect (local values
+                                                     beat style triggers in WPF's property-precedence order). -->
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="Transparent"/>
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                                                <Setter Property="Background"
+                                                                        Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
                                                 <Border.ContextMenu>
                                                     <ContextMenu>
                                                         <MenuItem x:Name="PinToDeviceMenu" Header="Pin to device"/>
